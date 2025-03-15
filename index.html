@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Match - The Addictive Puzzle Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Fredoka', sans-serif;
+            touch-action: manipulation;
+            background: #edf2f7;
+        }
+        
+        .game-tile {
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        
+        .game-tile:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen p-4">
+        <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Color Match</h1>
+                <p class="text-gray-600">Level <span id="level">1</span></p>
+                <p class="text-gray-600">Score: <span id="score">0</span></p>
+            </div>
+
+            <div id="gameBoard" class="grid grid-cols-4 gap-2 mb-6">
+            </div>
+
+            <div class="flex justify-between items-center">
+                <button id="resetBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">
+                    <i class="bi bi-arrow-clockwise"></i> Reset
+                </button>
+                <div class="text-sm text-gray-500">Moves: <span id="moves">0</span></div>
+                <button id="hintBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                    <i class="bi bi-lightbulb"></i> Hint
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', '#D4A5A5', '#9B59B6', '#3498DB'];
+        let gameState = {
+            level: 1,
+            score: 0,
+            moves: 0,
+            tiles: [],
+            selected: null,
+            hints: 3
+        };
+
+        function initializeGame() {
+            const gameBoard = document.getElementById('gameBoard');
+            gameBoard.innerHTML = '';
+            gameState.tiles = [];
+            gameState.moves = 0;
+            updateUI();
+
+            // Generate pairs of colors
+            const levelColors = colors.slice(0, Math.min(4, 2 + Math.floor(gameState.level / 1000)));
+            let gameTiles = [...levelColors, ...levelColors];
+            gameTiles = shuffleArray(gameTiles);
+
+            gameTiles.forEach((color, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'game-tile bg-gray-200 w-full h-20 rounded-lg cursor-pointer';
+                tile.dataset.index = index;
+                gameState.tiles.push({ color, revealed: false, matched: false });
+                
+                tile.addEventListener('click', () => handleTileClick(index));
+                gameBoard.appendChild(tile);
+            });
+        }
+
+        function handleTileClick(index) {
+            if (gameState.tiles[index].matched || gameState.tiles[index].revealed) return;
+            
+            const tile = document.querySelector(`[data-index="${index}"]`);
+            revealTile(tile, index);
+
+            if (gameState.selected === null) {
+                gameState.selected = index;
+            } else {
+                gameState.moves++;
+                updateUI();
+
+                if (gameState.tiles[gameState.selected].color === gameState.tiles[index].color) {
+                    // Match found
+                    gameState.tiles[gameState.selected].matched = true;
+                    gameState.tiles[index].matched = true;
+                    gameState.score += 100;
+                    gameState.selected = null;
+
+                    if (checkWin()) {
+                        setTimeout(() => {
+                            alert(`Level ${gameState.level} completed! Moving to next level.`);
+                            gameState.level++;
+                            gameState.score += 500;
+                            initializeGame();
+                        }, 500);
+                    }
+                } else {
+                    // No match
+                    setTimeout(() => {
+                        hideTile(document.querySelector(`[data-index="${gameState.selected}"]`), gameState.selected);
+                        hideTile(tile, index);
+                        gameState.selected = null;
+                    }, 1000);
+                }
+            }
+        }
+
+        function revealTile(tile, index) {
+            tile.style.backgroundColor = gameState.tiles[index].color;
+            gameState.tiles[index].revealed = true;
+        }
+
+        function hideTile(tile, index) {
+            tile.style.backgroundColor = '#E2E8F0';
+            gameState.tiles[index].revealed = false;
+        }
+
+        function checkWin() {
+            return gameState.tiles.every(tile => tile.matched);
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function updateUI() {
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('moves').textContent = gameState.moves;
+        }
+
+        document.getElementById('resetBtn').addEventListener('click', initializeGame);
+        document.getElementById('hintBtn').addEventListener('click', () => {
+            if (gameState.hints > 0) {
+                gameState.hints--;
+                const unmatched = gameState.tiles.filter(tile => !tile.matched);
+                const color = unmatched[0].color;
+                const indices = gameState.tiles.reduce((acc, tile, index) => {
+                    if (tile.color === color && !tile.matched) acc.push(index);
+                    return acc;
+                }, []);
+                
+                indices.forEach(index => {
+                    const tile = document.querySelector(`[data-index="${index}"]`);
+                    tile.style.backgroundColor = gameState.tiles[index].color;
+                    setTimeout(() => {
+                        if (!gameState.tiles[index].matched) {
+                            hideTile(tile, index);
+                        }
+                    }, 1000);
+                });
+            }
+        });
+
+        // Initialize the game
+        initializeGame();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
